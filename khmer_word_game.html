@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <!-- Prevent user from zooming on mobile -->
+  <meta name="viewport" content="width=device-width, maximum-scale=1.0, user-scalable=no">
+  <title>Khmer Word Game (Audio)</title>
+  <style>
+    :root {
+      --primary-color: #2c3e50;
+      --secondary-color: #3498db;
+      --success-color: #27ae60;
+      --text-color: #2c3e50;
+    }
+
+    * {
+      box-sizing: border-box;
+      touch-action: manipulation; /* Helps with mobile tapping */
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 10px;
+      background-color: #f8f9fa;
+      color: var(--text-color);
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      text-align: center;
+    }
+
+    .header {
+      padding: 20px 0;
+    }
+
+    .cards-selection {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+
+    .card-option {
+      padding: 20px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      text-align: center;
+      cursor: pointer;
+      transition: transform 0.1s;
+      user-select: none;
+      min-height: 80px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+    }
+
+    .card-option.selected {
+      background: var(--success-color);
+      color: white;
+      transform: scale(0.98);
+    }
+
+    .card-option:active {
+      transform: scale(0.96);
+    }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin: 20px 0;
+    }
+
+    button {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 25px;
+      background: var(--secondary-color);
+      color: white;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: opacity 0.2s;
+      min-width: 140px;
+    }
+
+    button:active {
+      opacity: 0.8;
+    }
+
+    /* The card section which appears after "Start Practice" */
+    .card-section {
+      display: none; /* hidden until user starts practice */
+      margin-top: 20px;
+    }
+
+    .card-container {
+      width: 90%;
+      max-width: 400px;
+      height: 250px;
+      margin: 0 auto;
+      perspective: 1000px;
+    }
+
+    .card-inner {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      transition: transform 0.6s;
+      transform-style: preserve-3d;
+    }
+
+    .card-flipped .card-inner {
+      transform: rotateY(180deg);
+    }
+
+    .card-face {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      backface-visibility: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border-radius: 15px;
+      padding: 20px;
+      background: white;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+      font-size: 1.4rem;
+      text-align: center;
+    }
+
+    .card-back {
+      transform: rotateY(180deg);
+      background: var(--primary-color);
+      color: white;
+    }
+
+    /* TTS/Audio button */
+    .tts-container {
+      margin-top: 10px;
+    }
+
+    .tts-button {
+      display: inline-block;
+      padding: 10px 16px;
+      font-size: 0.9rem;
+      background: var(--success-color);
+      border-radius: 25px;
+      margin-top: 5px;
+      cursor: pointer;
+      color: white;
+      border: none;
+    }
+
+    @media (max-width: 480px) {
+      .card-option {
+        font-size: 1rem;
+        min-height: 70px;
+        padding: 15px;
+      }
+      button {
+        width: 100%;
+        padding: 15px;
+      }
+      .card-container {
+        height: 220px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <!-- HEADER -->
+    <div class="header">
+      <h1>Learn Khmer 🇰🇭</h1>
+      <p>Selected: <span id="selected-count">0</span></p>
+    </div>
+
+    <!-- SELECTION GRID -->
+    <div class="cards-selection" id="cards-selection"></div>
+
+    <!-- INITIAL CONTROLS -->
+    <div class="controls">
+      <button id="select-all">Select All</button>
+      <button id="deselect-all">Deselect All</button>
+      <button id="start-training">Start Practice</button>
+    </div>
+
+    <!-- CARD SECTION (hidden until we start) -->
+    <div class="card-section" id="card-section">
+      <div class="card-container" id="card-container">
+        <div class="card-inner" id="card-inner">
+          <div class="card-face card-front" id="card-front"></div>
+          <div class="card-face card-back" id="card-back"></div>
+        </div>
+      </div>
+
+      <div class="tts-container">
+        <button class="tts-button" id="tts-button">Hear Pronunciation 🔊</button>
+      </div>
+    </div>
+
+    <!-- PRACTICE CONTROLS -->
+    <div class="controls" id="practice-controls" style="display: none;">
+      <button id="got-it">I Know It ✅</button>
+      <button id="try-again">Try Again 🔄</button>
+      <button id="end-session">End Session ⏹️</button>
+    </div>
+  </div>
+
+  <!-- HIDDEN AUDIO ELEMENT (no autoplay to avoid mobile blocking) -->
+  <audio id="tts-audio" playsinline></audio>
+
+  <script>
+    /******************************************************
+     * Only the words that have a matching .mp3 in GitHub
+     ******************************************************/
+    const khmerWords = [
+      {
+        front: 'យន្តហោះ', phonetic: 'yŭən hɑh', english: 'Airplane',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/airplane.mp3'
+      },
+      {
+        front: 'ខឹង', phonetic: 'khəng', english: 'Angry',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/angry.mp3'
+      },
+      {
+        front: 'ខ្មៅ', phonetic: 'khmaw', english: 'Black',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/black.mp3'
+      },
+      {
+        front: 'ខៀវ', phonetic: 'khiev', english: 'Blue',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/blue.mp3'
+      },
+      {
+        front: 'ទូក', phonetic: 'tuuk', english: 'Boat',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/boat.mp3'
+      },
+      {
+        front: 'រាងកាយ', phonetic: 'reang-gaay', english: 'Body',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/body.mp3'
+      },
+      {
+        front: 'សៀវភៅ', phonetic: 'sieow-phev', english: 'Book',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/book.mp3'
+      },
+      {
+        front: 'យានដ្ឋាន', phonetic: 'yaan-dthan', english: 'Bus',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/bus.mp3'
+      },
+      {
+        front: 'កាមេរ៉ា', phonetic: 'kaa-mee-ra', english: 'Camera',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/camera.mp3'
+      },
+      {
+        front: 'រថយន្ត', phonetic: 'roth-yun', english: 'Car',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/car.mp3'
+      },
+      {
+        front: 'ត្រជាក់', phonetic: 'trɑ-cheak', english: 'Cold',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/cold.mp3'
+      },
+      {
+        front: 'អាកាសធាតុត្រជាក់', phonetic: 'a-kaa-tə-tro-cheak', english: 'Cold Weather',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/cold_weather.mp3'
+      },
+      {
+        front: 'កុំព្យូទ័រ', phonetic: 'kom-pyu-tor', english: 'Computer',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/computer.mp3'
+      },
+      {
+        front: 'ប្រទេស', phonetic: 'bpra-teh', english: 'Country',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/country.mp3'
+      },
+      {
+        front: 'ឆ្ងាញ់', phonetic: 'chhnganh', english: 'Delicious',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/delicious.mp3'
+      },
+      {
+        front: 'បើក', phonetic: 'baerk', english: 'Drive',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/drive.mp3'
+      },
+      {
+        front: 'ត្រចៀក', phonetic: 'trɑ-chiek', english: 'Ear',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/ear.mp3'
+      },
+      {
+        front: 'ញ៉ាំ', phonetic: 'nham', english: 'Eat',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/eat.mp3'
+      },
+      {
+        front: 'ប្រាំបី', phonetic: 'prăm-bei', english: 'Eight',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/eight.mp3'
+      },
+      {
+        front: 'ថាមពល', phonetic: 'thaa-mɑ-pɔl', english: 'Energy',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/energy.mp3'
+      },
+      {
+        front: 'ភ្នែក', phonetic: 'phnek', english: 'Eye',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/eye.mp3'
+      },
+      {
+        front: 'ឪពុក', phonetic: 'av-puk', english: 'Father',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/father.mp3'
+      },
+      {
+        front: 'ត្រី', phonetic: 'trei', english: 'Fish',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/fish.mp3'
+      },
+      {
+        front: 'ប្រាំ', phonetic: 'prăm', english: 'Five',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/five.mp3'
+      },
+      {
+        front: 'ជម្រាបសួរ', phonetic: 'chum-reep-suŏr', english: 'Formal Greeting',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/formal_greeting.mp3'
+      },
+      {
+        front: 'បួន', phonetic: 'buŏn', english: 'Four',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/four.mp3'
+      },
+      {
+        front: 'ថ្ងៃសុក្រ', phonetic: 'thngay sok', english: 'Friday',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/friday.mp3'
+      },
+      {
+        front: 'មិត្ត', phonetic: 'mit', english: 'Friend',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/friend.mp3'
+      },
+      {
+        front: 'ផ្លែឈើ', phonetic: 'plae-chheu', english: 'Fruit',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/fruit.mp3'
+      },
+      {
+        front: 'អរុណសួស្តី', phonetic: 'a-run suŏs-déi', english: 'Good morning',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/good_morning.mp3'
+      },
+      {
+        front: 'រាត្រីសួស្តី', phonetic: 'rea-trei suŏs-déi', english: 'Good night',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/good_night.mp3'
+      },
+      {
+        front: 'លាហើយ', phonetic: 'lia hâoy', english: 'Goodbye',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/goodbye.mp3'
+      },
+      {
+        front: 'បៃតង', phonetic: 'bay-tɑng', english: 'Green',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/green.mp3'
+      },
+      {
+        front: 'ដៃ', phonetic: 'day', english: 'Hand',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/hand.mp3'
+      },
+      {
+        front: 'រីករាយ', phonetic: 'rik-reay', english: 'Happy',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/happy.mp3'
+      },
+      {
+        front: 'មួក', phonetic: 'muŏk', english: 'Hat',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/hat.mp3'
+      },
+      {
+        front: 'ក្បាល', phonetic: 'kbaal', english: 'Head',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/head.mp3'
+      },
+      {
+        front: 'សួស្តី', phonetic: 'suŏs-déi', english: 'Hello',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/hello.mp3'
+      },
+      {
+        front: 'ក្ដៅ', phonetic: 'kdao', english: 'Hot',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/hot.mp3'
+      },
+      {
+        front: 'អាកាសធាតុក្ដៅ', phonetic: 'a-kaa-tə-kdao', english: 'Hot Weather',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/hot_weather.mp3'
+      },
+      {
+        front: 'ផ្ទះ', phonetic: 'pteah', english: 'House',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/house.mp3'
+      },
+      {
+        front: 'ឃ្លាន', phonetic: 'khlean', english: 'Hungry',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/hungry.mp3'
+      },
+      {
+        front: 'ខ្ញុំ', phonetic: 'khnhom', english: 'I / Me',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/i_me.mp3'
+      },
+      {
+        front: 'អ៊ីនធឺណិត', phonetic: 'in-thɨ-nət', english: 'Internet',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/internet.mp3'
+      },
+      {
+        front: 'ជើង', phonetic: 'chəəng', english: 'Leg',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/leg.mp3'
+      },
+      {
+        front: 'ពន្លឺ', phonetic: 'pon-leu', english: 'Light',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/light.mp3'
+      },
+      {
+        front: 'សាច់', phonetic: 'sach', english: 'Meat',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/meat.mp3'
+      },
+      {
+        front: 'ថ្ងៃចន្ទ', phonetic: 'thngay chan', english: 'Monday',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/monday.mp3'
+      },
+      {
+        front: 'ម៉ែ', phonetic: 'me', english: 'Mother',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/mother.mp3'
+      },
+      {
+        front: 'ម៉ូតូ', phonetic: 'moto', english: 'Motorcycle',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/motorcycle.mp3'
+      },
+      {
+        front: 'ប្រាំបួន', phonetic: 'prăm-buŏn', english: 'Nine',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/nine.mp3'
+      },
+      {
+        front: 'ទេ', phonetic: 'te', english: 'No',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/no.mp3'
+      },
+      {
+        front: 'មិនអីទេ', phonetic: 'min-ey-te', english: 'No Problem',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/no_problem.mp3'
+      },
+      {
+        front: 'មួយ', phonetic: 'muŏy', english: 'One',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/one.mp3'
+      },
+      {
+        front: 'ខោ', phonetic: 'khao', english: 'Pants',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/pants.mp3'
+      },
+      {
+        front: 'ភ្នំពេញ', phonetic: 'phnom penh', english: 'Phnom Penh',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/phnom_penh.mp3'
+      },
+      {
+        front: 'ទូរស័ព្ទ', phonetic: 'tuu-rə-sap', english: 'Phone',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/phone.mp3'
+      },
+      {
+        front: 'អញ្ជើញ', phonetic: 'anh-jerng', english: 'Please invite',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/please_invite.mp3'
+      },
+      {
+        front: 'ប៉ូលីស', phonetic: 'po-leas', english: 'Police',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/police.mp3'
+      },
+      {
+        front: 'ភ្លៀង', phonetic: 'phliəng', english: 'Rain',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/rain.mp3'
+      },
+      {
+        front: 'ភ្លៀង', phonetic: 'phliəng', english: 'Rainy',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/rainy.mp3'
+      },
+      {
+        front: 'ក្រហម', phonetic: 'krɑ-hɑm', english: 'Red',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/red.mp3'
+      },
+      {
+        front: 'បាយ', phonetic: 'bai', english: 'Rice',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/rice.mp3'
+      },
+      {
+        front: 'រត់', phonetic: 'rɔt', english: 'Run',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/run.mp3'
+      },
+      {
+        front: 'កំសត់', phonetic: 'kɑmsat', english: 'Sad',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/sad.mp3'
+      },
+      {
+        front: 'ថ្ងៃសៅរ៍', phonetic: 'thngay sao', english: 'Saturday',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/saturday.mp3'
+      },
+      {
+        front: 'សាលា', phonetic: 'sa-la', english: 'School',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/school.mp3'
+      },
+      {
+        front: 'ប្រាំពីរ', phonetic: 'prăm-pī', english: 'Seven',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/seven.mp3'
+      },
+      {
+        front: 'អាវ', phonetic: 'aav', english: 'Shirt',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/shirt.mp3'
+      },
+      {
+        front: 'ស្បែកជើង', phonetic: 'sbaek-jəəng', english: 'Shoes',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/shoes.mp3'
+      },
+      {
+        front: 'ប្រាំមួយ', phonetic: 'prăm-muŏy', english: 'Six',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/six.mp3'
+      },
+      {
+        front: 'សំពត់', phonetic: 'som-pot', english: 'Skirt',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/skirt.mp3'
+      },
+      {
+        front: 'សុំទោស', phonetic: 'som-toh', english: 'Sorry',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/sorry.mp3'
+      },
+      {
+        front: 'សិស្ស', phonetic: 'sɨs', english: 'Student',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/student.mp3'
+      },
+      {
+        front: 'សិក្សា', phonetic: 'sɨk-sa', english: 'Study',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/study.mp3'
+      },
+      {
+        front: 'ថ្ងៃអាទិត្យ', phonetic: 'thngay aa-tit', english: 'Sunday',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/sunday.mp3'
+      },
+      {
+        front: 'គ្រូ', phonetic: 'kruu', english: 'Teacher',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/teacher.mp3'
+      },
+      {
+        front: 'ទូរស័ព្ទ', phonetic: 'tuu-rə-sap', english: 'Telephone',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/telephone.mp3'
+      },
+      {
+        front: 'ដប់', phonetic: 'dop', english: 'Ten',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/ten.mp3'
+      },
+      {
+        front: 'អរគុណ', phonetic: 'aw-kohn', english: 'Thank you',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/thank_you.mp3'
+      },
+      {
+        front: 'អរគុណ', phonetic: 'aw-kohn', english: 'Thankful',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/thankful.mp3'
+      },
+      {
+        front: 'បី', phonetic: 'bei', english: 'Three',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/three.mp3'
+      },
+      {
+        front: 'ថ្ងៃព្រហស្បតិ៍', phonetic: 'thngay pro-hos', english: 'Thursday',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/thursday.mp3'
+      },
+      {
+        front: 'នឿយហត់', phonetic: 'nuəy-hat', english: 'Tired',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/tired.mp3'
+      },
+      {
+        front: 'ថ្ងៃអង្គារ', phonetic: 'thngay ong-kea', english: 'Tuesday',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/tuesday.mp3'
+      },
+      {
+        front: 'ពីរ', phonetic: 'pii', english: 'Two',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/two.mp3'
+      },
+      {
+        front: 'បន្លែ', phonetic: 'banlae', english: 'Vegetable',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/vegetable.mp3'
+      },
+      {
+        front: 'ដើរ', phonetic: 'daer', english: 'Walk',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/walk.mp3'
+      },
+      {
+        front: 'ទឹក', phonetic: 'dtŭk', english: 'Water',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/water.mp3'
+      },
+      {
+        front: 'ថ្ងៃពុធ', phonetic: 'thngay puth', english: 'Wednesday',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/wednesday.mp3'
+      },
+      {
+        front: 'ស', phonetic: 'sɑɑ', english: 'White',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/white.mp3'
+      },
+      {
+        front: 'ខ្យល់', phonetic: 'khyɑl', english: 'Wind',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/wind.mp3'
+      },
+      {
+        front: 'ខ្យល់', phonetic: 'khyɑl', english: 'Windy',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/windy.mp3'
+      },
+      {
+        front: 'ការងារ', phonetic: 'kaa-ngiea', english: 'Work',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/work.mp3'
+      },
+      {
+        front: 'លឿង', phonetic: 'lɨəng', english: 'Yellow',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/yellow.mp3'
+      },
+      {
+        front: 'ចាស', phonetic: 'chaah', english: 'Yes (female)',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/yes_female.mp3'
+      },
+      {
+        front: 'បាទ', phonetic: 'baat', english: 'Yes (male)',
+        audio: 'https://raw.githubusercontent.com/SharkyTim/khmer-audio/main/audio/yes_male.mp3'
+      }
+    ];
+
+    /************************************************************
+     * Global State
+     ************************************************************/
+    let selectedIndexes = [];
+    let currentIndex = -1;
+    let isCardFlipped = false;
+
+    // DOM references
+    const cardsSelection    = document.getElementById('cards-selection');
+    const selectedCountSpan = document.getElementById('selected-count');
+    const selectAllBtn      = document.getElementById('select-all');
+    const deselectAllBtn    = document.getElementById('deselect-all');
+    const startTrainingBtn  = document.getElementById('start-training');
+
+    const cardSection       = document.getElementById('card-section');
+    const cardContainer     = document.getElementById('card-container');
+    const cardInner         = document.getElementById('card-inner');
+    const cardFront         = document.getElementById('card-front');
+    const cardBack          = document.getElementById('card-back');
+
+    const practiceControls  = document.getElementById('practice-controls');
+    const gotItBtn          = document.getElementById('got-it');
+    const tryAgainBtn       = document.getElementById('try-again');
+    const endSessionBtn     = document.getElementById('end-session');
+
+    const ttsButton         = document.getElementById('tts-button');
+    const ttsAudio          = document.getElementById('tts-audio');
+
+    /************************************************************
+     * 1) Generate Selection Grid
+     ************************************************************/
+    khmerWords.forEach((wordObj, index) => {
+      const div = document.createElement('div');
+      div.classList.add('card-option');
+      div.textContent = wordObj.front;
+
+      // Toggle selection on click
+      div.addEventListener('click', () => {
+        if (selectedIndexes.includes(index)) {
+          // Deselect
+          selectedIndexes = selectedIndexes.filter(i => i !== index);
+          div.classList.remove('selected');
+        } else {
+          // Select
+          selectedIndexes.push(index);
+          div.classList.add('selected');
+        }
+        selectedCountSpan.textContent = selectedIndexes.length;
+      });
+
+      cardsSelection.appendChild(div);
+    });
+
+    /************************************************************
+     * 2) Select/Deselect All
+     ************************************************************/
+    selectAllBtn.addEventListener('click', () => {
+      selectedIndexes = khmerWords.map((_, i) => i); // all indices
+      selectedCountSpan.textContent = selectedIndexes.length;
+      document.querySelectorAll('.card-option').forEach((cardOption) => {
+        cardOption.classList.add('selected');
+      });
+    });
+
+    deselectAllBtn.addEventListener('click', () => {
+      selectedIndexes = [];
+      selectedCountSpan.textContent = 0;
+      document.querySelectorAll('.card-option').forEach((cardOption) => {
+        cardOption.classList.remove('selected');
+      });
+    });
+
+    /************************************************************
+     * 3) Start Practice
+     ************************************************************/
+    startTrainingBtn.addEventListener('click', () => {
+      if (selectedIndexes.length === 0) {
+        alert('Please select at least one card before starting.');
+        return;
+      }
+      // Hide selection UI
+      cardsSelection.style.display = 'none';
+      selectAllBtn.style.display = 'none';
+      deselectAllBtn.style.display = 'none';
+      startTrainingBtn.style.display = 'none';
+
+      // Show card + practice controls
+      cardSection.style.display = 'block';
+      practiceControls.style.display = 'flex';
+
+      // Shuffle selected cards
+      shuffleArray(selectedIndexes);
+
+      currentIndex = 0;
+      showCard(currentIndex);
+    });
+
+    /************************************************************
+     * 4) Practice Controls
+     ************************************************************/
+    // "I Know It" => remove the current card, update count
+    gotItBtn.addEventListener('click', () => {
+      selectedIndexes.splice(currentIndex, 1);
+
+      // Update the display count so user sees how many remain
+      selectedCountSpan.textContent = selectedIndexes.length;
+
+      if (selectedIndexes.length === 0) {
+        alert('Awesome! You finished all selected cards.');
+        endSession();
+        return;
+      }
+      if (currentIndex >= selectedIndexes.length) {
+        currentIndex = 0;
+      }
+      showCard(currentIndex);
+    });
+
+    // "Try Again" => keep card, move to next
+    tryAgainBtn.addEventListener('click', () => {
+      currentIndex++;
+      if (currentIndex >= selectedIndexes.length) {
+        currentIndex = 0;
+      }
+      showCard(currentIndex);
+    });
+
+    // "End Session"
+    endSessionBtn.addEventListener('click', () => {
+      endSession();
+    });
+
+    // Flip card on container click (ignore TTS button)
+    cardContainer.addEventListener('click', (e) => {
+      if (!e.target.classList.contains('tts-button')) {
+        flipCard();
+      }
+    });
+
+    /************************************************************
+     * 5) TTS Button
+     ************************************************************/
+    ttsButton.addEventListener('click', () => {
+      if (!ttsAudio.src) {
+        alert('Audio not ready yet. Please try again.');
+        return;
+      }
+      ttsAudio.play().catch(err => {
+        console.log('Audio play error:', err);
+        alert('Audio was blocked. Make sure your device volume is on and not in silent mode.');
+      });
+    });
+
+    /************************************************************
+     * Helper Functions
+     ************************************************************/
+    function showCard(idx) {
+      // Show the front side
+      cardContainer.classList.remove('card-flipped');
+      isCardFlipped = false;
+
+      const w = khmerWords[selectedIndexes[idx]];
+      // Front: Khmer script
+      cardFront.textContent = w.front;
+
+      // Back: phonetic + English
+      cardBack.innerHTML = `
+        <div>${w.phonetic}</div>
+        <div style="margin-top:8px; font-size:0.9em;">${w.english}</div>
+      `;
+
+      // Update audio source
+      ttsAudio.src = w.audio;
+      ttsAudio.load();
+    }
+
+    function flipCard() {
+      isCardFlipped = !isCardFlipped;
+      cardContainer.classList.toggle('card-flipped', isCardFlipped);
+    }
+
+    function endSession() {
+      // Reset to selection
+      cardsSelection.style.display = 'grid';
+      selectAllBtn.style.display = 'inline-block';
+      deselectAllBtn.style.display = 'inline-block';
+      startTrainingBtn.style.display = 'inline-block';
+
+      // Hide practice UI
+      cardSection.style.display = 'none';
+      practiceControls.style.display = 'none';
+
+      // Clear selections
+      selectedIndexes = [];
+      selectedCountSpan.textContent = 0;
+
+      // Unselect all card-option divs
+      document.querySelectorAll('.card-option').forEach(div => {
+        div.classList.remove('selected');
+      });
+    }
+
+    function shuffleArray(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+    }
+  </script>
+</body>
+</html>
