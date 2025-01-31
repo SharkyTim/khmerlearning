@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Khmer 40-Card Word Game</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      margin: 0;
+      padding: 20px;
+      background-color: #f7f7f7;
+    }
+
+    .cards-selection {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+
+    .card-option {
+      width: 100px;
+      height: 100px;
+      margin: 10px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 1.5rem;
+      border: 2px solid #eaeaea;
+      background-color: #ffffff;
+      cursor: pointer;
+      border-radius: 8px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    .card-option.selected {
+      background-color: #4caf50;
+      color: #ffffff;
+      border-color: #4caf50;
+    }
+
+    /* Make the flip card bigger */
+    .card {
+      width: 300px;
+      height: 300px;
+      margin: 20px;
+      perspective: 1000px;
+    }
+
+    .card-inner {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      text-align: center;
+      transition: transform 0.6s;
+      transform-style: preserve-3d;
+    }
+
+    .card:hover .card-inner {
+      transform: rotateY(180deg);
+    }
+
+    .card-front,
+    .card-back {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      backface-visibility: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      border-radius: 8px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      padding: 15px;
+      box-sizing: border-box;
+    }
+
+    .card-front {
+      background-color: #ffffff;
+      border: 2px solid #eaeaea;
+      font-size: 2rem;
+    }
+
+    .card-back {
+      background-color: #4caf50;
+      color: #ffffff;
+      transform: rotateY(180deg);
+      font-size: 1.1rem;
+      line-height: 1.4;
+    }
+
+    button {
+      padding: 10px 20px;
+      font-size: 1rem;
+      color: #ffffff;
+      background-color: #007bff;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      margin: 5px;
+    }
+
+    button:hover {
+      background-color: #0056b3;
+    }
+
+    .controls {
+      margin-bottom: 20px;
+    }
+
+    #remaining-cards {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      background-color: #f1f1f1;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      font-size: 1rem;
+      color: #333;
+      max-height: 300px;
+      overflow-y: auto;
+      width: 200px;
+    }
+
+    #remaining-list {
+      margin-top: 10px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+      gap: 5px;
+    }
+
+    #remaining-list .small-card {
+      display: inline-block;
+      width: 60px;
+      height: 60px;
+      background-color: #ffffff;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      text-align: center;
+      line-height: 60px;
+      font-size: 0.8rem;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .arrow {
+      cursor: pointer;
+      font-size: 1.2rem;
+      margin-top: 10px;
+      text-align: center;
+    }
+
+    #training-controls {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Hidden audio element for TTS -->
+  <audio id="tts-audio"></audio>
+
+  <div id="remaining-cards" style="display: none;">
+    <div>Cards Left: <span id="cards-left">0</span></div>
+    <div class="arrow" id="toggle-remaining">▼</div>
+    <div id="remaining-list"></div>
+  </div>
+
+  <div class="cards-selection">
+    <!-- Dynamically generated card options -->
+  </div>
+
+  <div class="controls">
+    <button id="toggle-reverse">Train with Phonetic First</button>
+    <button id="select-all">Select All</button>
+    <button id="remove-all">Remove All</button>
+  </div>
+
+  <button id="start-training">Start Training</button>
+  <button id="reset-training" style="display: none;">Reset</button>
+
+  <div id="card-container" class="card" style="display: none;">
+    <div class="card-inner">
+      <div class="card-front">?</div>
+      <div class="card-back"></div>
+    </div>
+  </div>
+
+  <div id="training-controls" style="display: none;">
+    <button id="got-it">Got It</button>
+    <button id="try-again">Try Again</button>
+  </div>
+
+  <script>
+    // 40 Common Khmer words total
+    // First 20 (original)
+    const first20 = [
+      { 
+        front: 'សួស្តី', 
+        back: { phonetic: 'suŏs-déi', english: 'Hello', word: 'សួស្តី' }
+      },
+      { 
+        front: 'ជម្រាបសួរ', 
+        back: { phonetic: 'chum-reep-suŏr', english: 'Formal Greeting', word: 'ជម្រាបសួរ' }
+      },
+      { 
+        front: 'អរុណសួស្តី', 
+        back: { phonetic: 'a-run suŏs-déi', english: 'Good morning', word: 'អរុណសួស្តី' }
+      },
+      { 
+        front: 'រាត្រីសួស្តី',
+        back: { phonetic: 'rea-trei suŏs-déi', english: 'Good night', word: 'រាត្រីសួស្តី' }
+      },
+      { 
+        front: 'អរគុណ',
+        back: { phonetic: 'aw-kohn', english: 'Thank you', word: 'អរគុណ' }
+      },
+      { 
+        front: 'ឆ្ងាញ់',
+        back: { phonetic: 'chhnganh', english: 'Delicious/Tasty', word: 'ឆ្ងាញ់' }
+      },
+      { 
+        front: 'ទឹក',
+        back: { phonetic: 'dtŭk', english: 'Water', word: 'ទឹក' }
+      },
+      { 
+        front: 'បាយ',
+        back: { phonetic: 'bai', english: 'Rice', word: 'បាយ' }
+      },
+      { 
+        front: 'មិនអីទេ',
+        back: { phonetic: 'mĭn ei te', english: 'No problem / It’s okay', word: 'មិនអីទេ' }
+      },
+      { 
+        front: 'លាហើយ',
+        back: { phonetic: 'lia hâoy', english: 'Goodbye', word: 'លាហើយ' }
+      },
+      { 
+        front: 'សុំទោស',
+        back: { phonetic: 'som-toh', english: 'Sorry', word: 'សុំទោស' }
+      },
+      { 
+        front: 'បាទ',
+        back: { phonetic: 'baat', english: 'Yes (male speaker)', word: 'បាទ' }
+      },
+      { 
+        front: 'ចាស',
+        back: { phonetic: 'chaah', english: 'Yes (female speaker)', word: 'ចាស' }
+      },
+      { 
+        front: 'ទេ',
+        back: { phonetic: 'te', english: 'No', word: 'ទេ' }
+      },
+      { 
+        front: 'ប៉ូលីស',
+        back: { phonetic: 'po-lih', english: 'Police', word: 'ប៉ូលីស' }
+      },
+      { 
+        front: 'ផ្ទះ',
+        back: { phonetic: 'pteah', english: 'House', word: 'ផ្ទះ' }
+      },
+      { 
+        front: 'ញ៉ាំ',
+        back: { phonetic: 'nham', english: 'To eat', word: 'ញ៉ាំ' }
+      },
+      { 
+        front: 'ខ្ញុំ',
+        back: { phonetic: 'khnhom', english: 'I / Me', word: 'ខ្ញុំ' }
+      },
+      { 
+        front: 'អញ្ជើញ',
+        back: { phonetic: 'on-joern', english: 'Please (invitation)', word: 'អញ្ជើញ' }
+      },
+      { 
+        front: 'ក្ដៅ',
+        back: { phonetic: 'kdao', english: 'Hot', word: 'ក្ដៅ' }
+      }
+    ];
+
+    // Next 20 (new)
+    const next20 = [
+      { 
+        front: 'ត្រី',
+        back: { phonetic: 'trei', english: 'fish', word: 'ត្រី' }
+      },
+      { 
+        front: 'សាច់',
+        back: { phonetic: 'sach', english: 'meat', word: 'សាច់' }
+      },
+      { 
+        front: 'ផ្លែឈើ',
+        back: { phonetic: 'plae-chheu', english: 'fruit', word: 'ផ្លែឈើ' }
+      },
+      { 
+        front: 'បន្លែ',
+        back: { phonetic: 'bon-lae', english: 'vegetable', word: 'បន្លែ' }
+      },
+      { 
+        front: 'រាងកាយ',
+        back: { phonetic: 'reang kai', english: 'body', word: 'រាងកាយ' }
+      },
+      { 
+        front: 'សិក្សា',
+        back: { phonetic: 'sək-sa', english: 'to study', word: 'សិក្សា' }
+      },
+      { 
+        front: 'សាលា',
+        back: { phonetic: 'sa-la', english: 'school', word: 'សាលា' }
+      },
+      { 
+        front: 'ការងារ',
+        back: { phonetic: 'ka-ngiə', english: 'work/job', word: 'ការងារ' }
+      },
+      { 
+        front: 'ដើរ',
+        back: { phonetic: 'daeu', english: 'to walk', word: 'ដើរ' }
+      },
+      { 
+        front: 'រត់',
+        back: { phonetic: 'rŭt', english: 'to run', word: 'រត់' }
+      },
+      { 
+        front: 'បើក',
+        back: { phonetic: 'baek', english: 'to drive', word: 'បើក' }
+      },
+      { 
+        front: 'ទូរស័ព្ទ',
+        back: { phonetic: 'tu-rasap', english: 'telephone', word: 'ទូរស័ព្ទ' }
+      },
+      { 
+        front: 'កុំព្យូទ័រ',
+        back: { phonetic: 'kom-pyu-tə', english: 'computer', word: 'កុំព្យូទ័រ' }
+      },
+      { 
+        front: 'ប្រទេស',
+        back: { phonetic: 'pra-teh', english: 'country', word: 'ប្រទេស' }
+      },
+      { 
+        front: 'ភ្នំពេញ',
+        back: { phonetic: 'phnom penh', english: 'Phnom Penh', word: 'ភ្នំពេញ' }
+      },
+      { 
+        front: 'មិត្ត',
+        back: { phonetic: 'mĭt', english: 'friend', word: 'មិត្ត' }
+      },
+      { 
+        front: 'សៀវភៅ',
+        back: { phonetic: 'siaw-phəu', english: 'book', word: 'សៀវភៅ' }
+      },
+      { 
+        front: 'គ្រូ',
+        back: { phonetic: 'kru', english: 'teacher', word: 'គ្រូ' }
+      },
+      { 
+        front: 'សិស្ស',
+        back: { phonetic: 'sih', english: 'student', word: 'សិស្ស' }
+      },
+      { 
+        front: 'ម៉ែ',
+        back: { phonetic: 'mé', english: 'mother', word: 'ម៉ែ' }
+      },
+      /*
+      // If you'd like father also:
+      // { 
+      //   front: 'ពុក',
+      //   back: { phonetic: 'puk', english: 'father', word: 'ពុក' }
+      // },
+      */
+    ];
+
+    // Combine them into a single array of 40
+    const cards = [...first20, ...next20];
+
+    // We'll store the selected card indices
+    const selectedCards = [];
+
+    // DOM elements
+    const cardsSelectionContainer = document.querySelector('.cards-selection');
+    const startTrainingButton = document.getElementById('start-training');
+    const resetTrainingButton = document.getElementById('reset-training');
+    const cardContainer = document.getElementById('card-container');
+    const trainingControls = document.getElementById('training-controls');
+    const gotItButton = document.getElementById('got-it');
+    const tryAgainButton = document.getElementById('try-again');
+    const selectAllButton = document.getElementById('select-all');
+    const removeAllButton = document.getElementById('remove-all');
+    const remainingCardsDisplay = document.getElementById('remaining-cards');
+    const cardsLeftDisplay = document.getElementById('cards-left');
+    const remainingList = document.getElementById('remaining-list');
+    const toggleRemaining = document.getElementById('toggle-remaining');
+    const toggleReverseButton = document.getElementById('toggle-reverse');
+    const ttsAudio = document.getElementById('tts-audio');
+
+    // State variables
+    let isReverse = false;
+    let lastRandomIndex = -1;
+    let currentCardIndex = -1;
+
+    // Handle toggling the list of remaining cards
+    toggleRemaining.addEventListener('click', () => {
+      if (remainingList.style.display === 'none') {
+        remainingList.style.display = 'grid';
+        toggleRemaining.textContent = '▲';
+      } else {
+        remainingList.style.display = 'none';
+        toggleRemaining.textContent = '▼';
+      }
+    });
+
+    // Toggle between "Phonetic first" vs. "Khmer first"
+    toggleReverseButton.addEventListener('click', () => {
+      isReverse = !isReverse;
+      toggleReverseButton.textContent = isReverse
+        ? 'Train with Khmer First'
+        : 'Train with Phonetic First';
+
+      // Flip the selection menu text
+      document.querySelectorAll('.card-option').forEach((cardOption, index) => {
+        if (isReverse) {
+          cardOption.textContent = cards[index].back.phonetic; 
+        } else {
+          cardOption.textContent = cards[index].front; 
+        }
+      });
+    });
+
+    // Function to update the "remaining cards" display
+    function updateRemainingCardsDisplay() {
+      cardsLeftDisplay.textContent = selectedCards.length;
+      remainingList.innerHTML = '';
+      selectedCards.forEach((cIndex) => {
+        const smallCard = document.createElement('div');
+        smallCard.classList.add('small-card');
+        smallCard.textContent = isReverse 
+          ? cards[cIndex].back.phonetic 
+          : cards[cIndex].front;
+        remainingList.appendChild(smallCard);
+      });
+    }
+
+    // Generate card options for selection
+    function generateCardOptions() {
+      cards.forEach((card, index) => {
+        const cardOption = document.createElement('div');
+        cardOption.classList.add('card-option');
+        // Default view: Khmer on the card selection
+        cardOption.textContent = card.front;
+
+        cardOption.addEventListener('click', () => {
+          cardOption.classList.toggle('selected');
+          if (selectedCards.includes(index)) {
+            selectedCards.splice(selectedCards.indexOf(index), 1);
+          } else {
+            selectedCards.push(index);
+          }
+          updateRemainingCardsDisplay();
+        });
+        cardsSelectionContainer.appendChild(cardOption);
+      });
+    }
+
+    // Select all
+    function selectAllCards() {
+      selectedCards.length = 0;
+      document.querySelectorAll('.card-option').forEach((cardOption, index) => {
+        if (!cardOption.classList.contains('selected')) {
+          cardOption.classList.add('selected');
+        }
+        selectedCards.push(index);
+      });
+      updateRemainingCardsDisplay();
+    }
+
+    // Remove all
+    function removeAllCards() {
+      selectedCards.length = 0;
+      document.querySelectorAll('.card-option').forEach((cardOption) => {
+        cardOption.classList.remove('selected');
+      });
+      updateRemainingCardsDisplay();
+    }
+
+    // Start training
+    function startTraining() {
+      if (selectedCards.length === 0) {
+        alert('Please select at least one card to start training.');
+        return;
+      }
+      cardsSelectionContainer.style.display = 'none';
+      startTrainingButton.style.display = 'none';
+      resetTrainingButton.style.display = 'block';
+      cardContainer.style.display = 'block';
+      trainingControls.style.display = 'flex';
+      remainingCardsDisplay.style.display = 'block';
+      selectAllButton.style.display = 'none';
+      removeAllButton.style.display = 'none';
+
+      updateRemainingCardsDisplay();
+      showRandomCard();
+    }
+
+    // Reset training
+    function resetTraining() {
+      selectedCards.length = 0;
+      cardsSelectionContainer.style.display = 'flex';
+      startTrainingButton.style.display = 'block';
+      resetTrainingButton.style.display = 'none';
+      cardContainer.style.display = 'none';
+      trainingControls.style.display = 'none';
+      remainingCardsDisplay.style.display = 'none';
+      selectAllButton.style.display = 'inline-block';
+      removeAllButton.style.display = 'inline-block';
+
+      document.querySelectorAll('.card-option').forEach((cardOption) => {
+        cardOption.classList.remove('selected');
+      });
+    }
+
+    // Show a random card
+    function showRandomCard() {
+      if (selectedCards.length === 0) {
+        alert('Training complete! All cards have been learned.');
+        resetTraining();
+        return;
+      }
+
+      let randomIndex;
+      do {
+        randomIndex = Math.floor(Math.random() * selectedCards.length);
+      } while (randomIndex === lastRandomIndex && selectedCards.length > 1);
+
+      lastRandomIndex = randomIndex;
+      currentCardIndex = randomIndex;
+
+      const cardData = cards[selectedCards[randomIndex]];
+      const cardFront = cardContainer.querySelector('.card-front');
+      const cardBack = cardContainer.querySelector('.card-back');
+
+      // If reversed: show phonetic first, then Khmer + English
+      if (isReverse) {
+        cardFront.textContent = cardData.back.phonetic;
+        cardBack.innerHTML = `
+          <p>${cardData.front}</p>
+          <p>English: ${cardData.back.english}</p>
+          <button onclick="playTts('${cardData.back.word}')">Hear it</button>
+        `;
+      } else {
+        // Normal: Khmer on front, phonetic + English on back
+        cardFront.textContent = cardData.front;
+        cardBack.innerHTML = `
+          <p>Phonetic: ${cardData.back.phonetic}</p>
+          <p>English: ${cardData.back.english}</p>
+          <button onclick="playTts('${cardData.back.word}')">Hear it</button>
+        `;
+      }
+    }
+
+    // "Got It" => remove current card
+    gotItButton.addEventListener('click', () => {
+      selectedCards.splice(currentCardIndex, 1);
+      updateRemainingCardsDisplay();
+      showRandomCard();
+    });
+
+    // "Try Again" => keep the card in the deck, show a new random card
+    tryAgainButton.addEventListener('click', showRandomCard);
+
+    // TTS function using Google Translate TTS
+    function playTts(khmerWord) {
+      ttsAudio.src = 
+        'https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob'
+        + '&q=' + encodeURIComponent(khmerWord) 
+        + '&tl=km';
+      ttsAudio.play();
+    }
+
+    // Expose playTts globally
+    window.playTts = playTts;
+
+    // Set up the page
+    generateCardOptions();
+
+    // Button listeners
+    startTrainingButton.addEventListener('click', startTraining);
+    resetTrainingButton.addEventListener('click', resetTraining);
+    selectAllButton.addEventListener('click', selectAllCards);
+    removeAllButton.addEventListener('click', removeAllCards);
+  </script>
+
+</body>
+</html>
