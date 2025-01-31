@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Khmer Learning Games</title>
+  <!-- Prevent zoom on mobile -->
+  <meta name="viewport" content="width=device-width, maximum-scale=1.0, user-scalable=no">
+  <style>
+    :root {
+      --primary-color: #2c3e50;
+      --secondary-color: #3498db;
+      --success-color: #27ae60;
+      --text-color: #ffffff;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    /* 1) BACKGROUND: local file "khmer_empire_map.png" + gradient overlay */
+    body {
+      background:
+        /* Transparent gradient for readability */
+        linear-gradient(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.5)),
+        /* Local image in the same folder */
+        url('khmer_empire_map.png') 
+          no-repeat center center fixed;
+      background-size: cover; /* cover the entire screen */
+      color: var(--text-color);
+
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* 2) CONTAINER, HEADER, and FLAG */
+    .menu-container {
+      text-align: center;
+      padding: 20px;
+      max-width: 800px;
+      width: 100%;
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      margin-bottom: 1rem;
+      text-shadow: 2px 2px 6px rgba(0, 0, 0, 0.7);
+    }
+
+    .flag-container {
+      margin: 20px auto;
+      display: flex;
+      justify-content: center;
+    }
+
+    .khmer-flag {
+      width: 240px; /* Larger Khmer flag */
+      box-shadow: 0 0 10px rgba(0,0,0,0.8);
+      border-radius: 5px;
+    }
+
+    /* 3) BUTTONS */
+    .buttons-container {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      margin-top: 30px;
+    }
+
+    a {
+      text-decoration: none;
+      color: white;
+    }
+
+    .menu-button {
+      background: var(--secondary-color);
+      border: none;
+      border-radius: 25px;
+      padding: 15px 25px;
+      font-size: 1.1rem;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.2s;
+      min-width: 220px;
+      text-align: center;
+      margin: 0 auto;
+    }
+
+    .menu-button:hover {
+      background: #2c80b4; /* darker than secondary */
+      transform: scale(1.03);
+    }
+
+    /* 4) SIGNATURE (bottom-right) */
+    .signature {
+      position: fixed;
+      right: 10px;
+      bottom: 10px;
+      font-size: 0.85rem;
+      color: #ffffffcc; /* slightly transparent white */
+      text-align: right;
+      z-index: 3;
+    }
+
+    /* 5) RESPONSIVE (mobile) */
+    @media (max-width: 600px) {
+      h1 {
+        font-size: 2rem;
+      }
+      .khmer-flag {
+        width: 180px;
+      }
+      .menu-button {
+        width: 100%;
+      }
+      .signature {
+        font-size: 0.7rem;
+        right: 5px;
+        bottom: 5px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="menu-container">
+    <h1>Khmer Learning Games</h1>
+
+    <!-- Single Khmer Flag -->
+    <div class="flag-container">
+      <img
+        class="khmer-flag"
+        src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/83/Flag_of_Cambodia.svg/375px-Flag_of_Cambodia.svg.png"
+        alt="Khmer Flag"
+      >
+    </div>
+
+    <!-- Buttons to your game pages -->
+    <div class="buttons-container">
+      <a href="khmer_word_game.html">
+        <div class="menu-button">Khmer Word Game (Audio)</div>
+      </a>
+      <a href="khmer_consonants_game.html">
+        <div class="menu-button">Khmer Consonants Game</div>
+      </a>
+      <a href="khmer_vowels_game.html">
+        <div class="menu-button">Khmer Vowels Game</div>
+      </a>
+    </div>
+  </div>
+
+  <!-- Signature -->
+  <div class="signature">
+    Website made by Timothé Aebischer,<br>
+    a Swiss national with Khmer origins.
+  </div>
+
+</body>
+</html>
