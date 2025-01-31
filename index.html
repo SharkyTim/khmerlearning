@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <!-- Prevent user from zooming on mobile -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Khmer 100-Card Learning Game</title>
+  <style>
+    :root {
+      --primary-color: #2c3e50;
+      --secondary-color: #3498db;
+      --success-color: #27ae60;
+      --text-color: #2c3e50;
+    }
+
+    * {
+      box-sizing: border-box;
+      touch-action: manipulation; /* Helps with mobile tapping */
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 10px;
+      background-color: #f8f9fa;
+      color: var(--text-color);
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    .header {
+      text-align: center;
+      padding: 20px 0;
+    }
+
+    .cards-selection {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+
+    .card-option {
+      padding: 20px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      text-align: center;
+      cursor: pointer;
+      transition: transform 0.1s;
+      user-select: none;
+      min-height: 80px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+    }
+
+    .card-option.selected {
+      background: var(--success-color);
+      color: white;
+      transform: scale(0.98);
+    }
+
+    .card-option:active {
+      transform: scale(0.96);
+    }
+
+    /* Card Section container to avoid overlap */
+    .card-section {
+      margin-top: 20px;
+      display: none; /* will show after start button */
+    }
+
+    .card-container {
+      width: 90%;
+      max-width: 400px;
+      height: 250px;
+      margin: 0 auto;
+      perspective: 1000px;
+    }
+
+    .card-inner {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      transition: transform 0.6s;
+      transform-style: preserve-3d;
+    }
+
+    /* Flip card when .card-flipped is on parent */
+    .card-flipped .card-inner {
+      transform: rotateY(180deg);
+    }
+
+    .card-face {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      backface-visibility: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border-radius: 15px;
+      padding: 20px;
+      background: white;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+      font-size: 1.4rem;
+      text-align: center;
+    }
+
+    .card-back {
+      transform: rotateY(180deg);
+      background: var(--primary-color);
+      color: white;
+    }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin: 20px 0;
+    }
+
+    button {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 25px;
+      background: var(--secondary-color);
+      color: white;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: opacity 0.2s;
+      min-width: 140px;
+    }
+
+    button:active {
+      opacity: 0.8;
+    }
+
+    /* TTS button now separate, with margin to avoid overlap */
+    .tts-button {
+      margin: 20px auto 0 auto;
+      display: block;
+      padding: 8px 16px;
+      font-size: 0.9rem;
+      background: var(--success-color);
+      border-radius: 25px;
+    }
+
+    @media (max-width: 480px) {
+      .card-option {
+        font-size: 1rem;
+        min-height: 70px;
+        padding: 15px;
+      }
+      
+      button {
+        width: 100%;
+        padding: 15px;
+      }
+      
+      .card-container {
+        height: 220px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Learn Khmer 🇰🇭</h1>
+      <p>Selected: <span id="selected-count">0</span>/100</p>
+    </div>
+
+    <!-- Card selection area -->
+    <div class="cards-selection"></div>
+
+    <!-- Initial controls -->
+    <div class="controls">
+      <button id="select-all">Select All</button>
+      <button id="deselect-all">Deselect All</button>
+      <button id="start-training">Start Practice</button>
+    </div>
+
+    <!-- Card + TTS in a separate container to avoid overlap -->
+    <div class="card-section">
+      <div class="card-container">
+        <div class="card-inner">
+          <div class="card-face card-front"></div>
+          <div class="card-face card-back"></div>
+        </div>
+      </div>
+      <button class="tts-button" onclick="playTts(currentWord)">Hear Pronunciation 🔊</button>
+    </div>
+
+    <!-- Practice session controls -->
+    <div class="controls" id="practice-controls" style="display: none;">
+      <button id="got-it">I Know It ✅</button>
+      <button id="try-again">Try Again 🔄</button>
+      <button id="end-session">End Session ⏹️</button>
+    </div>
+  </div>
+
+  <!-- Hidden audio for TTS -->
+  <audio id="tts-audio"></audio>
+
+  <script>
+    /************************************************************
+     *  100 VERIFIED KHMER WORDS
+     ************************************************************/
+    const khmerWords = [
+      // 1) Greetings (5)
+      { front: 'សួស្តី',      phonetic: 'suŏs-déi',           english: 'Hello',             word: 'សួស្តី' },
+      { front: 'ជម្រាបសួរ',   phonetic: 'chum-reep-suŏr',    english: 'Formal Greeting',   word: 'ជម្រាបសួរ' },
+      { front: 'អរុណសួស្តី',   phonetic: 'a-run suŏs-déi',    english: 'Good morning',      word: 'អរុណសួស្តី' },
+      { front: 'រាត្រីសួស្តី', phonetic: 'rea-trei suŏs-déi', english: 'Good night',        word: 'រាត្រីសួស្តី' },
+      { front: 'លាហើយ',      phonetic: 'lia hâoy',           english: 'Goodbye',           word: 'លាហើយ' },
+
+      // 2) Common Phrases (5)
+      { front: 'អរគុណ',       phonetic: 'aw-kohn',            english: 'Thank you',         word: 'អរគុណ' },
+      { front: 'សុំទោស',       phonetic: 'som-toh',            english: 'Sorry',             word: 'សុំទោស' },
+      { front: 'បាទ',         phonetic: 'baat',               english: 'Yes (male)',        word: 'បាទ' },
+      { front: 'ចាស',         phonetic: 'chaah',              english: 'Yes (female)',      word: 'ចាស' },
+      { front: 'ទេ',          phonetic: 'te',                 english: 'No',                word: 'ទេ' },
+
+      // 3) Food (5)
+      { front: 'បាយ',         phonetic: 'bai',                english: 'Rice',              word: 'បាយ' },
+      { front: 'ទឹក',         phonetic: 'dtŭk',               english: 'Water',             word: 'ទឹក' },
+      { front: 'ត្រី',         phonetic: 'trei',               english: 'Fish',              word: 'ត្រី' },
+      { front: 'សាច់',        phonetic: 'sach',               english: 'Meat',              word: 'សាច់' },
+      { front: 'ផ្លែឈើ',       phonetic: 'plae-chheu',         english: 'Fruit',             word: 'ផ្លែឈើ' },
+
+      // 4) Numbers (10) - 1 to 10
+      { front: 'មួយ',         phonetic: 'muŏy',               english: 'One',               word: 'មួយ' },
+      { front: 'ពីរ',         phonetic: 'pī',                 english: 'Two',               word: 'ពីរ' },
+      { front: 'បី',          phonetic: 'bei',                english: 'Three',             word: 'បី' },
+      { front: 'បួន',         phonetic: 'buŏn',               english: 'Four',              word: 'បួន' },
+      { front: 'ប្រាំ',        phonetic: 'prăm',               english: 'Five',              word: 'ប្រាំ' },
+      { front: 'ប្រាំមួយ',    phonetic: 'prăm-muŏy',          english: 'Six',               word: 'ប្រាំមួយ' },
+      { front: 'ប្រាំពីរ',    phonetic: 'prăm-pī',            english: 'Seven',             word: 'ប្រាំពីរ' },
+      { front: 'ប្រាំបី',      phonetic: 'prăm-bei',           english: 'Eight',             word: 'ប្រាំបី' },
+      { front: 'ប្រាំបួន',    phonetic: 'prăm-buŏn',          english: 'Nine',              word: 'ប្រាំបួន' },
+      { front: 'ដប់',         phonetic: 'dop',                english: 'Ten',               word: 'ដប់' },
+
+      // 5) Family (5)
+      { front: 'ឪពុក',       phonetic: 'ov puk',             english: 'Father',            word: 'ឪពុក' },
+      { front: 'ម្តាយ',       phonetic: 'mdaay',              english: 'Mother',            word: 'ម្តាយ' },
+      { front: 'ប្អូន',       phonetic: 'pʼoon',              english: 'Sibling',           word: 'ប្អូន' },
+      { front: 'បង',         phonetic: 'bɑɑng',              english: 'Elder sibling',     word: 'បង' },
+      { front: 'កូន',         phonetic: 'koun',               english: 'Child',             word: 'កូន' },
+
+      // 6) Time (5)
+      { front: 'ថ្ងៃ',         phonetic: 'thngay',             english: 'Day',               word: 'ថ្ងៃ' },
+      { front: 'យប់',         phonetic: 'yup',                english: 'Night',             word: 'យប់' },
+      { front: 'ខែ',          phonetic: 'khae',               english: 'Month',             word: 'ខែ' },
+      { front: 'ឆ្នាំ',        phonetic: 'chnam',              english: 'Year',              word: 'ឆ្នាំ' },
+      { front: 'ម៉ោង',        phonetic: 'maong',              english: 'Hour',              word: 'ម៉ោង' },
+
+      // 7) Colors (5)
+      { front: 'ក្រហម',       phonetic: 'krɑhɑɑm',            english: 'Red',               word: 'ក្រហម' },
+      { front: 'ខៀវ',         phonetic: 'khiev',              english: 'Blue',              word: 'ខៀវ' },
+      { front: 'បៃតង',       phonetic: 'baitɑɑng',           english: 'Green',             word: 'បៃតង' },
+      { front: 'លឿង',        phonetic: 'luəng',              english: 'Yellow',            word: 'លឿង' },
+      { front: 'ស',          phonetic: 'sɑɑ',                english: 'White',             word: 'ស' },
+
+      // 8) Verbs (5)
+      { front: 'ញ៉ាំ',        phonetic: 'nham',               english: 'Eat',               word: 'ញ៉ាំ' },
+      { front: 'ផឹក',         phonetic: 'phək',               english: 'Drink',             word: 'ផឹក' },
+      { front: 'ដេក',         phonetic: 'deek',               english: 'Sleep',             word: 'ដេក' },
+      { front: 'អាន',         phonetic: 'aan',                english: 'Read',              word: 'អាន' },
+      { front: 'សរសេរ',       phonetic: 'sɑɑ see',            english: 'Write',             word: 'សរសេរ' },
+
+      // 9) Places (5)
+      { front: 'ផ្ទះ',        phonetic: 'pteah',              english: 'House',             word: 'ផ្ទះ' },
+      { front: 'សាលា',       phonetic: 'sa-la',              english: 'School',            word: 'សាលា' },
+      { front: 'ផ្សារ',       phonetic: 'psaa',               english: 'Market',            word: 'ផ្សារ' },
+      { front: 'វត្ត',        phonetic: 'vŏət',               english: 'Pagoda',            word: 'វត្ត' },
+      { front: 'រដ្ឋាភិបាល',  phonetic: 'rŏətthaaphiʼbaal',   english: 'Government',        word: 'រដ្ឋាភិបាល' },
+
+      // 10) Animals (5)
+      { front: 'ឆ្កែ',        phonetic: 'chhkae',             english: 'Dog',               word: 'ឆ្កែ' },
+      { front: 'ឆ្មា',        phonetic: 'chhmaa',             english: 'Cat',               word: 'ឆ្មា' },
+      { front: 'គោ',         phonetic: 'koo',                english: 'Cow',               word: 'គោ' },
+      { front: 'មាន់',        phonetic: 'mŏən',               english: 'Chicken',           word: 'មាន់' },
+      { front: 'កង្កែប',       phonetic: 'kɑngkaep',           english: 'Frog',              word: 'កង្កែប' },
+
+      // 11) Body Parts (5)
+      { front: 'ក្បាល',       phonetic: 'kbaal',              english: 'Head',              word: 'ក្បាល' },
+      { front: 'ដៃ',         phonetic: 'day',                english: 'Hand',              word: 'ដៃ' },
+      { front: 'ជើង',        phonetic: 'cəəng',              english: 'Leg',               word: 'ជើង' },
+      { front: 'ភ្នែក',       phonetic: 'pnɛɛk',              english: 'Eye',               word: 'ភ្នែក' },
+      { front: 'ត្រចៀក',       phonetic: 'trɑciək',            english: 'Ear',               word: 'ត្រចៀក' },
+
+      // 12) Weather (5)
+      { front: 'ភ្លៀង',       phonetic: 'phliəng',            english: 'Rain',              word: 'ភ្លៀង' },
+      { front: 'ក្ដៅ',        phonetic: 'kdao',               english: 'Hot',               word: 'ក្ដៅ' },
+      { front: 'ត្រជាក់',      phonetic: 'trɑcheak',           english: 'Cold',              word: 'ត្រជាក់' },
+      { front: 'ខ្យល់',       phonetic: 'kyɑl',               english: 'Wind',              word: 'ខ្យល់' },
+      { front: 'ពន្លឺ',        phonetic: 'pŭənlɨɨ',             english: 'Light',            word: 'ពន្លឺ' },
+
+      // 13) Transportation (5)
+      { front: 'រថយន្ត',      phonetic: 'rɔɔt yŭən',          english: 'Car',               word: 'រថយន្ត' },
+      { front: 'ម៉ូតូ',       phonetic: 'moutou',             english: 'Motorcycle',        word: 'ម៉ូតូ' },
+      { front: 'យានដ្ឋាន',     phonetic: 'yien tʰaan',         english: 'Bus Station',       word: 'យានដ្ឋាន' },
+      { front: 'យន្តហោះ',     phonetic: 'yŭən hɑh',           english: 'Airplane',          word: 'យន្តហោះ' },
+      { front: 'ទូក',        phonetic: 'tuuk',               english: 'Boat',              word: 'ទូក' },
+
+      // 14) Technology (5)
+      { front: 'ទូរស័ព្ទ',     phonetic: 'tuurasap',           english: 'Phone',             word: 'ទូរស័ព្ទ' },
+      { front: 'កុំព្យូទ័រ',   phonetic: 'kompyuutɔə',         english: 'Computer',          word: 'កុំព្យូទ័រ' },
+      { front: 'អ៊ីនធឺណិត',   phonetic: 'intɨɨnət',           english: 'Internet',          word: 'អ៊ីនធឺណិត' },
+      { front: 'កាមេរ៉ា',     phonetic: 'kaameeraa',          english: 'Camera',            word: 'កាមេរ៉ា' },
+      { front: 'ថាមពល',       phonetic: 'thaamɑpŭəl',         english: 'Energy',            word: 'ថាមពល' },
+
+      // 15) Emotions (5)
+      { front: 'រីករាយ',      phonetic: 'rik-reay',           english: 'Happy',             word: 'រីករាយ' },
+      { front: 'សប្បាយចិត្ត',  phonetic: 'sab-bay-chet',       english: 'Joyful',            word: 'សប្បាយចិត្ត' },
+      { front: 'ព្រួយបារម្ភ', phonetic: 'pruoy ba-rom',       english: 'Worried',           word: 'ព្រួយបារម្ភ' },
+      { front: 'ខឹង',        phonetic: 'khəng',              english: 'Angry',             word: 'ខឹង' },
+      { front: 'ស្រឡាញ់',     phonetic: 'sralanh',            english: 'To love',           word: 'ស្រឡាញ់' },
+
+      // 16) Clothes (5)
+      { front: 'អាវ',         phonetic: 'aav',                english: 'Shirt',             word: 'អាវ' },
+      { front: 'ខោ',         phonetic: 'khaov',              english: 'Pants',             word: 'ខោ' },
+      { front: 'ស្បែកជើង',     phonetic: 'sbaek-jəəng',        english: 'Shoes',             word: 'ស្បែកជើង' },
+      { front: 'មួក',        phonetic: 'muŏk',               english: 'Hat',               word: 'មួក' },
+      { front: 'សំពត់',       phonetic: 'som-pot',            english: 'Skirt',             word: 'សំពត់' },
+
+      // 17) Days of the Week (7)
+      { front: 'ថ្ងៃអាទិត្យ',  phonetic: 'thngay aa-tit',      english: 'Sunday',            word: 'ថ្ងៃអាទិត្យ' },
+      { front: 'ថ្ងៃចន្ទ',      phonetic: 'thngay chan',        english: 'Monday',            word: 'ថ្ងៃចន្ទ' },
+      { front: 'ថ្ងៃអង្គារ',    phonetic: 'thngay ong-kea',     english: 'Tuesday',           word: 'ថ្ងៃអង្គារ' },
+      { front: 'ថ្ងៃពុធ',       phonetic: 'thngay puth',        english: 'Wednesday',         word: 'ថ្ងៃពុធ' },
+      { front: 'ថ្ងៃព្រហស្បតិ៍', phonetic: 'thngay pro-hos',     english: 'Thursday',          word: 'ថ្ងៃព្រហស្បតិ៍' },
+      { front: 'ថ្ងៃសុក្រ',      phonetic: 'thngay sok',         english: 'Friday',            word: 'ថ្ងៃសុក្រ' },
+      { front: 'ថ្ងៃសៅរ៍',      phonetic: 'thngay sao',         english: 'Saturday',          word: 'ថ្ងៃសៅរ៍' },
+
+      // 18) Months (7) => Reaches 100
+      { front: 'មករា',         phonetic: 'môk-kaa-ra',         english: 'January',           word: 'មករា' },
+      { front: 'កុម្ភៈ',       phonetic: 'kŏm-pheăk',           english: 'February',          word: 'កុម្ភៈ' },
+      { front: 'មិនា',         phonetic: 'me-niia',            english: 'March',             word: 'មិនា' },
+      { front: 'មេសា',         phonetic: 'me-sa',              english: 'April',             word: 'មេសា' },
+      { front: 'ឧសភា',         phonetic: 'ou-sa-phiia',         english: 'May',               word: 'ឧសភា' },
+      { front: 'មិថុនា',       phonetic: 'mi-thu-naa',          english: 'June',              word: 'មិថុនា' },
+      { front: 'កក្កដា',        phonetic: 'kăk-kă-daa',          english: 'July',             word: 'កក្កដា' },
+    ];
+
+    /************************************************************
+     *  GLOBAL STATE
+     ************************************************************/
+    let selectedIndexes = []; // store indices of selected words
+    let currentIndex = -1;    // which index in 'selectedIndexes' is being shown
+    let currentWord = '';     // the actual Khmer word used for TTS
+    let isCardFlipped = false;
+
+    // DOM references
+    const cardsSelection = document.querySelector('.cards-selection');
+    const selectedCountSpan = document.getElementById('selected-count');
+
+    const selectAllBtn = document.getElementById('select-all');
+    const deselectAllBtn = document.getElementById('deselect-all');
+    const startTrainingBtn = document.getElementById('start-training');
+
+    const cardSection = document.querySelector('.card-section');
+    const cardContainer = document.querySelector('.card-container');
+    const cardInner = cardContainer.querySelector('.card-inner');
+    const cardFront = cardContainer.querySelector('.card-front');
+    const cardBack = cardContainer.querySelector('.card-back');
+
+    const gotItBtn = document.getElementById('got-it');
+    const tryAgainBtn = document.getElementById('try-again');
+    const endSessionBtn = document.getElementById('end-session');
+    const practiceControls = document.getElementById('practice-controls');
+
+    const ttsAudio = document.getElementById('tts-audio');
+
+    /************************************************************
+     *  SETUP
+     ************************************************************/
+    // 1) Generate selection cards
+    khmerWords.forEach((item, index) => {
+      const div = document.createElement('div');
+      div.classList.add('card-option');
+      div.textContent = item.front; // Show the Khmer text by default
+
+      div.addEventListener('click', () => {
+        // Toggle selection
+        if (selectedIndexes.includes(index)) {
+          // Deselect
+          selectedIndexes = selectedIndexes.filter(i => i !== index);
+          div.classList.remove('selected');
+        } else {
+          // Select
+          selectedIndexes.push(index);
+          div.classList.add('selected');
+        }
+        selectedCountSpan.textContent = selectedIndexes.length;
+      });
+
+      cardsSelection.appendChild(div);
+    });
+
+    // 2) "Select All" button
+    selectAllBtn.addEventListener('click', () => {
+      selectedIndexes = khmerWords.map((_, i) => i); // all indices
+      selectedCountSpan.textContent = selectedIndexes.length;
+      document.querySelectorAll('.card-option').forEach((cardOption) => {
+        cardOption.classList.add('selected');
+      });
+    });
+
+    // 3) "Deselect All" button
+    deselectAllBtn.addEventListener('click', () => {
+      selectedIndexes = [];
+      selectedCountSpan.textContent = 0;
+      document.querySelectorAll('.card-option').forEach((cardOption) => {
+        cardOption.classList.remove('selected');
+      });
+    });
+
+    // 4) Start Practice
+    startTrainingBtn.addEventListener('click', () => {
+      if (selectedIndexes.length === 0) {
+        alert('Please select at least one card before starting.');
+        return;
+      }
+
+      // Hide selection area & initial buttons
+      cardsSelection.style.display = 'none';
+      selectAllBtn.style.display = 'none';
+      deselectAllBtn.style.display = 'none';
+      startTrainingBtn.style.display = 'none';
+
+      // Show the card + practice controls
+      cardSection.style.display = 'block';
+      practiceControls.style.display = 'flex';
+
+      // Shuffle the selected indexes to randomize the practice
+      shuffleArray(selectedIndexes);
+
+      // Show the first card
+      currentIndex = 0;
+      showCard(currentIndex);
+    });
+
+    // 5) "Got It" button
+    gotItBtn.addEventListener('click', () => {
+      // Remove this index from the array
+      selectedIndexes.splice(currentIndex, 1);
+
+      if (selectedIndexes.length === 0) {
+        // Done
+        alert('Congrats! You have gone through all selected cards.');
+        endSession();
+      } else {
+        // If currentIndex is now out of range, reset to 0
+        if (currentIndex >= selectedIndexes.length) {
+          currentIndex = 0;
+        }
+        showCard(currentIndex);
+      }
+    });
+
+    // 6) "Try Again" button
+    tryAgainBtn.addEventListener('click', () => {
+      // Move to next index
+      currentIndex++;
+      if (currentIndex >= selectedIndexes.length) {
+        currentIndex = 0;
+      }
+      showCard(currentIndex);
+    });
+
+    // 7) "End Session" button
+    endSessionBtn.addEventListener('click', () => {
+      endSession();
+    });
+
+    // 8) Flip card on container click
+    cardContainer.addEventListener('click', (e) => {
+      // Only flip if the user didn't click the TTS button
+      if (!e.target.classList.contains('tts-button')) {
+        flipCard();
+      }
+    });
+
+    /************************************************************
+     *  FUNCTIONS
+     ************************************************************/
+
+    // Show card based on currentIndex in selectedIndexes
+    function showCard(idx) {
+      // Make sure we show the front side each time a new card is loaded
+      cardContainer.classList.remove('card-flipped');
+      isCardFlipped = false;
+
+      const wordObj = khmerWords[selectedIndexes[idx]];
+
+      // Front side: Khmer
+      cardFront.textContent = wordObj.front;
+      // Back side: phonetic + English
+      cardBack.innerHTML = `
+        <div>${wordObj.phonetic}</div>
+        <div style="margin-top:8px; font-size:0.9em;">${wordObj.english}</div>
+      `;
+
+      // For TTS
+      currentWord = wordObj.word;
+    }
+
+    // Flip the card
+    function flipCard() {
+      isCardFlipped = !isCardFlipped;
+      if (isCardFlipped) {
+        cardContainer.classList.add('card-flipped');
+      } else {
+        cardContainer.classList.remove('card-flipped');
+      }
+    }
+
+    // End session => reset interface
+    function endSession() {
+      // Show selection area
+      cardsSelection.style.display = 'grid';
+      selectAllBtn.style.display = 'inline-block';
+      deselectAllBtn.style.display = 'inline-block';
+      startTrainingBtn.style.display = 'inline-block';
+
+      // Hide practice elements
+      cardSection.style.display = 'none';
+      practiceControls.style.display = 'none';
+
+      // Clear selected indexes
+      selectedIndexes = [];
+      selectedCountSpan.textContent = 0;
+
+      // Unselect all UI
+      const allCardOptions = document.querySelectorAll('.card-option');
+      allCardOptions.forEach(div => div.classList.remove('selected'));
+    }
+
+    // Simple array shuffle
+    function shuffleArray(arr) {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+    }
+
+    // TTS function - Google Translate TTS (client=gtx for better mobile support)
+    function playTts(khmerText) {
+      const baseURL = 'https://translate.google.com/translate_tts?ie=UTF-8&client=gtx';
+      const lang = 'km'; // Khmer
+      const audioUrl = `${baseURL}&q=${encodeURIComponent(khmerText)}&tl=${lang}`;
+
+      ttsAudio.src = audioUrl;
+      // iOS Safari requires this to be triggered by a direct user click
+      ttsAudio.play().catch((err) => {
+        console.log('Audio play error:', err);
+        alert('Audio cannot play automatically on this device. Please tap again or check your browser settings.');
+      });
+    }
+
+    // Expose globally so the button can call it
+    window.playTts = playTts;
+  </script>
+</body>
+</html>
