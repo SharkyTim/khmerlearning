@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <!-- Prevent user zoom on mobile -->
+  <meta name="viewport" content="width=device-width, maximum-scale=1.0, user-scalable=no">
+  <title>Khmer Vowels Game</title>
+  <style>
+    :root {
+      --primary-color: #2c3e50;
+      --secondary-color: #3498db;
+      --success-color: #27ae60;
+      --text-color: #2c3e50;
+    }
+
+    * {
+      box-sizing: border-box;
+      touch-action: manipulation; /* Helps with mobile tapping */
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 10px;
+      background-color: #f8f9fa;
+      color: var(--text-color);
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      text-align: center;
+    }
+
+    .header {
+      padding: 20px 0;
+    }
+
+    .cards-selection {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+
+    .card-option {
+      padding: 20px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      text-align: center;
+      cursor: pointer;
+      transition: transform 0.1s;
+      user-select: none;
+      min-height: 80px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+    }
+
+    .card-option.selected {
+      background: var(--success-color);
+      color: white;
+      transform: scale(0.98);
+    }
+
+    .card-option:active {
+      transform: scale(0.96);
+    }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin: 20px 0;
+    }
+
+    button {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 25px;
+      background: var(--secondary-color);
+      color: white;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: opacity 0.2s;
+      min-width: 140px;
+    }
+
+    button:active {
+      opacity: 0.8;
+    }
+
+    /* The card section (hidden until start) */
+    .card-section {
+      display: none;
+      margin-top: 20px;
+    }
+
+    .card-container {
+      width: 90%;
+      max-width: 400px;
+      height: 250px;
+      margin: 0 auto;
+      perspective: 1000px;
+    }
+
+    .card-inner {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      transition: transform 0.6s;
+      transform-style: preserve-3d;
+    }
+
+    .card-flipped .card-inner {
+      transform: rotateY(180deg);
+    }
+
+    .card-face {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      backface-visibility: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border-radius: 15px;
+      padding: 20px;
+      background: white;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+      font-size: 2rem;
+      text-align: center;
+    }
+
+    .card-back {
+      transform: rotateY(180deg);
+      background: var(--primary-color);
+      color: white;
+      font-size: 1.2rem;
+    }
+
+    @media (max-width: 480px) {
+      .card-option {
+        font-size: 1.2rem;
+        min-height: 70px;
+      }
+      button {
+        width: 100%;
+      }
+      .card-container {
+        height: 220px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <!-- HEADER -->
+    <div class="header">
+      <h1>Khmer Vowels Game</h1>
+      <p>Selected: <span id="selected-count">0</span></p>
+    </div>
+
+    <!-- SELECTION GRID -->
+    <div class="cards-selection" id="cards-selection"></div>
+
+    <!-- INITIAL CONTROLS -->
+    <div class="controls">
+      <button id="select-all">Select All</button>
+      <button id="deselect-all">Deselect All</button>
+      <button id="start-training">Start Practice</button>
+    </div>
+
+    <!-- CARD SECTION (hidden until start) -->
+    <div class="card-section" id="card-section">
+      <div class="card-container" id="card-container">
+        <div class="card-inner" id="card-inner">
+          <div class="card-face card-front" id="card-front">?</div>
+          <div class="card-face card-back" id="card-back"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PRACTICE CONTROLS -->
+    <div class="controls" id="practice-controls" style="display: none;">
+      <button id="got-it">I Know It ✅</button>
+      <button id="try-again">Try Again 🔄</button>
+      <button id="end-session">End Session ⏹️</button>
+    </div>
+
+  </div>
+
+  <script>
+    /****************************************************
+     * Khmer Vowels Data
+     * front = vowel sign
+     * back = rough phonetic / explanation
+     ****************************************************/
+    const vowels = [
+      { front: 'ា',   back: 'aa' },
+      { front: 'ិ',   back: 'éh' },
+      { front: 'ី',   back: '1. euy' },
+      { front: 'ឹ',   back: "euh'" },
+      { front: 'ឺ',   back: 'euh...' },
+      { front: 'ុ',   back: "o'" },
+      { front: 'ូ',   back: 'oo' },
+      { front: 'ួ',   back: 'our' },
+      { front: 'ើ',   back: 'aeur' },
+      { front: 'ឿ',   back: 'oeur' },
+      { front: 'ៀ',   back: 'ie...' },
+      { front: 'េ',   back: 'é...' },
+      { front: 'ែ',   back: 'aè' },
+      { front: 'ៃ',   back: 'ay' },
+      { front: 'ោ',   back: 'ao' },
+      { front: 'ៅ',   back: 'aou (aw)' },
+      { front: 'អុំ',  back: 'ôm' },
+      { front: 'អំ',  back: 'orm' },
+      { front: 'អាំ', back: 'arm' },
+      { front: 'អះ', back: 'arh' },
+      { front: 'អុះ', back: 'orh' },
+      { front: 'អេះ', back: 'èhh' },
+      { front: 'អោះ', back: "oa'" },
+      { front: 'អិះ', back: "ih'" },
+      { front: 'អឹះ', back: "euu'" }
+    ];
+
+    // Global state
+    let selectedIndexes = [];
+    let currentIndex = -1;
+    let isCardFlipped = false;
+
+    // DOM references
+    const cardsSelection    = document.getElementById('cards-selection');
+    const selectedCountSpan = document.getElementById('selected-count');
+    const selectAllBtn      = document.getElementById('select-all');
+    const deselectAllBtn    = document.getElementById('deselect-all');
+    const startTrainingBtn  = document.getElementById('start-training');
+
+    const cardSection       = document.getElementById('card-section');
+    const cardContainer     = document.getElementById('card-container');
+    const cardInner         = document.getElementById('card-inner');
+    const cardFront         = document.getElementById('card-front');
+    const cardBack          = document.getElementById('card-back');
+
+    const practiceControls  = document.getElementById('practice-controls');
+    const gotItBtn          = document.getElementById('got-it');
+    const tryAgainBtn       = document.getElementById('try-again');
+    const endSessionBtn     = document.getElementById('end-session');
+
+    // Generate the selection grid
+    vowels.forEach((v, index) => {
+      const div = document.createElement('div');
+      div.classList.add('card-option');
+      div.textContent = v.front; // display vowel sign
+
+      div.addEventListener('click', () => {
+        // toggle selection
+        if (selectedIndexes.includes(index)) {
+          selectedIndexes = selectedIndexes.filter(i => i !== index);
+          div.classList.remove('selected');
+        } else {
+          selectedIndexes.push(index);
+          div.classList.add('selected');
+        }
+        selectedCountSpan.textContent = selectedIndexes.length;
+      });
+
+      cardsSelection.appendChild(div);
+    });
+
+    // Select All
+    selectAllBtn.addEventListener('click', () => {
+      selectedIndexes = vowels.map((_, i) => i);
+      selectedCountSpan.textContent = selectedIndexes.length;
+
+      document.querySelectorAll('.card-option').forEach(div => {
+        div.classList.add('selected');
+      });
+    });
+
+    // Deselect All
+    deselectAllBtn.addEventListener('click', () => {
+      selectedIndexes = [];
+      selectedCountSpan.textContent = 0;
+
+      document.querySelectorAll('.card-option').forEach(div => {
+        div.classList.remove('selected');
+      });
+    });
+
+    // Start Practice
+    startTrainingBtn.addEventListener('click', () => {
+      if (selectedIndexes.length === 0) {
+        alert('Please select at least one vowel.');
+        return;
+      }
+      // Hide selection
+      cardsSelection.style.display = 'none';
+      selectAllBtn.style.display = 'none';
+      deselectAllBtn.style.display = 'none';
+      startTrainingBtn.style.display = 'none';
+
+      // Show card + practice controls
+      cardSection.style.display = 'block';
+      practiceControls.style.display = 'flex';
+
+      shuffleArray(selectedIndexes);
+      currentIndex = 0;
+      showCard(currentIndex);
+    });
+
+    // Practice Controls
+    gotItBtn.addEventListener('click', () => {
+      // remove the card from the array
+      selectedIndexes.splice(currentIndex, 1);
+      selectedCountSpan.textContent = selectedIndexes.length;
+
+      if (selectedIndexes.length === 0) {
+        alert('Awesome! You finished all selected vowels.');
+        endSession();
+        return;
+      }
+      if (currentIndex >= selectedIndexes.length) {
+        currentIndex = 0;
+      }
+      showCard(currentIndex);
+    });
+
+    tryAgainBtn.addEventListener('click', () => {
+      currentIndex++;
+      if (currentIndex >= selectedIndexes.length) {
+        currentIndex = 0;
+      }
+      showCard(currentIndex);
+    });
+
+    endSessionBtn.addEventListener('click', endSession);
+
+    // Flip card on container click
+    cardContainer.addEventListener('click', (e) => {
+      flipCard();
+    });
+
+    function showCard(idx) {
+      cardContainer.classList.remove('card-flipped');
+      isCardFlipped = false;
+
+      const v = vowels[selectedIndexes[idx]];
+      cardFront.textContent = v.front;
+      cardBack.textContent  = v.back;
+    }
+
+    function flipCard() {
+      isCardFlipped = !isCardFlipped;
+      if (isCardFlipped) {
+        cardContainer.classList.add('card-flipped');
+      } else {
+        cardContainer.classList.remove('card-flipped');
+      }
+    }
+
+    function endSession() {
+      // Return to selection
+      cardsSelection.style.display = 'grid';
+      selectAllBtn.style.display = 'inline-block';
+      deselectAllBtn.style.display = 'inline-block';
+      startTrainingBtn.style.display = 'inline-block';
+
+      // Hide practice
+      cardSection.style.display = 'none';
+      practiceControls.style.display = 'none';
+
+      // Reset state
+      selectedIndexes = [];
+      selectedCountSpan.textContent = 0;
+      document.querySelectorAll('.card-option').forEach(div => {
+        div.classList.remove('selected');
+      });
+    }
+
+    // Simple shuffle
+    function shuffleArray(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+    }
+  </script>
+</body>
+</html>
